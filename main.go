@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"regexp"
 )
 
 var (
@@ -30,6 +31,7 @@ var (
 	horizontal     = flag.Bool("horizontal", false, "lay out the dependency graph horizontally instead of vertically")
 	includeTests   = flag.Bool("t", false, "include test packages")
 	maxLevel       = flag.Int("l", 256, "max level of go dependency graph")
+	magicString    = flag.String( "m", "***", "magic string to search for highlighting/ excluding nested dependencies")
 
 	buildTags    []string
 	buildContext = build.Default
@@ -37,13 +39,14 @@ var (
 
 func main() {
 	pkgs = make(map[string]*build.Package)
+
 	ids = make(map[string]int)
 	flag.Parse()
 
 	args := flag.Args()
 
-	if len(args) != 1 {
-		log.Fatal("need one package name to process")
+	if len(args) < 1 {
+		log.Fatal("need at least one package name to process")
 	}
 
 	if *ignorePrefixes != "" {
@@ -66,9 +69,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to get cwd: %s", err)
 	}
-	if err := processPackage(cwd, args[0], 0); err != nil {
-		log.Fatal(err)
+
+	//allow multiple entry points to share the same graph
+	for _, item := range args {
+		if err := processPackage(cwd, item , 0); err != nil {
+			log.Fatal(err)
+		}
 	}
+
 
 	fmt.Println("digraph godep {")
 	if *horizontal {
@@ -81,6 +89,9 @@ func main() {
 		pkgKeys = append(pkgKeys, k)
 	}
 	sort.Strings(pkgKeys)
+
+	//company specific, remove first two, used to remove first 2 directories in import name (yes, horrible regex)
+	twoPathParts := regexp.MustCompile("^[\\w\\d.]+/[\\w\\d.]+/")
 
 	for _, pkgName := range pkgKeys {
 		pkg := pkgs[pkgName]
@@ -95,11 +106,13 @@ func main() {
 			color = "palegreen"
 		} else if len(pkg.CgoFiles) > 0 {
 			color = "darkgoldenrod1"
+		} else if strings.Contains(pkgName, *magicString) {
+			color = "darkgoldenrod1"
 		} else {
 			color = "paleturquoise"
 		}
 
-		fmt.Printf("_%d [label=\"%s\" style=\"filled\" color=\"%s\"];\n", pkgId, pkgName, color)
+		fmt.Printf("_%d [label=\"%s\" style=\"filled\" color=\"%s\"];\n", pkgId, twoPathParts.ReplaceAllString(pkgName,""), color)
 
 		// Don't render imports from packages in Goroot
 		if pkg.Goroot && !*delveGoroot {
@@ -120,6 +133,7 @@ func main() {
 }
 
 func processPackage(root string, pkgName string, level int) error {
+	//log.Printf("Processing package %s, %s, %s", root, pkgName, level);
 	if level++; level > *maxLevel {
 		return nil
 	}
@@ -129,7 +143,8 @@ func processPackage(root string, pkgName string, level int) error {
 
 	pkg, err := buildContext.Import(pkgName, root, 0)
 	if err != nil {
-		return fmt.Errorf("failed to import %s: %s", pkgName, err)
+		//return fmt.Errorf("failed to import %s: %s", pkgName, err)
+		return nil
 	}
 
 	if isIgnored(pkg) {
@@ -143,8 +158,14 @@ func processPackage(root string, pkgName string, level int) error {
 		return nil
 	}
 
+	/*log.Print("New root ", pkg.Dir, pkg.Name)
+	if pkgName == "github.com/c2fo/c2fo-go/lib/utils/errorstack" {
+		pkgTest, err := buildContext.Import("github.com/getsentry/raven-go", pkg.Dir, 0)
+		log.Print(pkgTest.Name, err);
+	}*/
 	for _, imp := range getImports(pkg) {
 		if _, ok := pkgs[imp]; !ok {
+			//Adding a search with root of Pkg.Dir should fix the vendor issue
 			if err := processPackage(root, imp, level); err != nil {
 				return err
 			}
@@ -164,6 +185,9 @@ func getImports(pkg *build.Package) []string {
 	for _, imp := range allImports {
 		if imp == pkg.ImportPath {
 			// Don't draw a self-reference when foo_test depends on foo.
+			continue
+		}
+		if strings.Contains(pkg.ImportPath,*magicString) && strings.Contains(imp, *magicString) {
 			continue
 		}
 		if _, ok := found[imp]; ok {
