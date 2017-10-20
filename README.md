@@ -1,12 +1,12 @@
-# godepgraph
+# godepgraph - Fork of [kisielk/godepgraph](https://github.com/kisielk/godepgraph)
 
 godepgraph is a program for generating a dependency graph of Go packages.
 
-[![Build Status](https://travis-ci.org/kisielk/godepgraph.png?branch=master)](https://travis-ci.org/kisielk/godepgraph)
+[![Build Status](https://travis-ci.org/impatient/godepgraph.png?branch=master)](https://travis-ci.org/impatient/godepgraph)
 
 ## Install
 
-    go get github.com/kisielk/godepgraph
+    go get github.com/impatient/godepgraph
 
 
 ## Use
@@ -14,12 +14,12 @@ godepgraph is a program for generating a dependency graph of Go packages.
 For basic usage, just give the package path of interest as the first
 argument:
 
-    godepgraph github.com/kisielk/godepgraph
+    godepgraph github.com/impatient/godepgraph
 
 The output is a graph in [Graphviz][graphviz] dot format. If you have the
 graphviz tools installed you can render it by piping the output to dot:
 
-    godepgraph github.com/kisielk/godepgraph | dot -Tpng -o godepgraph.png
+    godepgraph github.com/impatient/godepgraph | dot -Tpng -o godepgraph.png
 
 By default godepgraph will display packages in the standard library in the
 graph, though it will not delve in to their dependencies.
@@ -31,6 +31,7 @@ godepgraph uses a simple color scheme to denote different types of packages:
   * *green*: a package that is part of the Go standard library, installed in `$GOROOT`.
   * *blue*: a regular Go package found in `$GOPATH`.
   * *orange*: a package found in `$GOPATH` that uses cgo by importing the special package "C".
+  * *goldenrod*: a package that contains magicString (-m)
 
 ## Ignoring Imports
 
@@ -38,7 +39,7 @@ godepgraph uses a simple color scheme to denote different types of packages:
 
 If you want to ignore standard library packages entirely, use the -s flag:
 
-    godepgraph -s github.com/kisielk/godepgraph
+    godepgraph -s github.com/impatient/godepgraph
 
 ### By Name
 
